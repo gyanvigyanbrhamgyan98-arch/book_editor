@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>पुस्तक संपादक — Book Editor</title>
+<style>
+  :root{--bg:#f5f3ee;--card:#fff;--ink:#23201c;--mut:#6b655d;--line:#e2ddd4;
+        --ok:#1c7a4a;--warn:#a5660a;--bad:#a12d2d;--accent:#8a3b2e;--accent2:#b8623f;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font-family:"Noto Sans Devanagari","Nirmala UI",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+       line-height:1.6;}
+  header{background:var(--accent);color:#fff;padding:14px 18px;position:sticky;top:0;z-index:5}
+  header h1{margin:0;font-size:1.15rem;font-weight:600}
+  header p{margin:2px 0 0;font-size:.8rem;opacity:.85}
+  .wrap{max-width:1100px;margin:0 auto;padding:16px;display:grid;gap:16px;
+        grid-template-columns:1fr 1fr}
+  @media(max-width:820px){.wrap{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+  .card h2{margin:0 0 10px;font-size:1rem}
+  textarea{width:100%;min-height:180px;resize:vertical;border:1px solid var(--line);
+           border-radius:8px;padding:10px;font:inherit;background:#fdfcfa}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}
+  button{border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:8px;
+         padding:8px 12px;font:inherit;cursor:pointer}
+  button:hover{background:#faf7f2}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  button.primary:hover{background:var(--accent2)}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  .muted{color:var(--mut);font-size:.85rem}
+  .finding{border:1px solid var(--line);border-left-width:4px;border-radius:8px;
+           padding:10px;margin:8px 0;background:#fdfcfa}
+  .finding.safe{border-left-color:var(--ok)}
+  .finding.manual{border-left-color:var(--warn)}
+  .finding.info{border-left-color:var(--mut)}
+  .finding h3{margin:0 0 4px;font-size:.95rem}
+  .finding .detail{font-size:.85rem;color:var(--mut);margin:0 0 8px}
+  .finding .btns{display:flex;gap:8px;flex-wrap:wrap}
+  .chip{display:inline-block;font-size:.72rem;padding:1px 7px;border-radius:99px;
+        background:#efeae1;color:var(--mut);margin-left:6px}
+  .ok-msg{color:var(--ok);font-weight:600}
+  .preview{background:#fff;border:1px solid var(--line);border-radius:8px;padding:22px;
+       max-height:460px;overflow:auto;
+       font-family:"Noto Serif Devanagari","Noto Sans Devanagari",serif;line-height:1.9}
+  .preview .titlepage{text-align:center;margin:20% 0}
+  .preview .booktitle{font-size:1.8em;margin:0 0 .3em}
+  .preview .bookauthor{color:var(--mut);margin:0}
+  .preview .contents{margin:1em 0 2em}
+  .preview .contents .toc{list-style:none;padding:0}
+  .preview .contents .toc li{margin:.3em 0}
+  .preview .chapter{margin-top:1.4em}
+  .preview .chapter-title{font-size:1.35em;margin:0 0 .5em;padding-bottom:.25em;border-bottom:1px solid var(--line)}
+  .preview p{margin:.5em 0;text-align:justify;text-indent:1.3em}
+  .hidden{display:none}
+  a.pay{display:inline-block;background:var(--accent);color:#fff;border-radius:8px;padding:10px 16px;text-decoration:none;font-weight:600}
+  a.pay:hover{background:var(--accent2)}
+  table.prices{border-collapse:collapse;width:100%;font-size:.9rem;margin:6px 0}
+  table.prices th,table.prices td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left}
+  table.prices td:last-child,table.prices th:last-child{text-align:right}
+  @media print{
+    body{background:#fff}
+    header,.left,.noprint{display:none !important}
+    .wrap{display:block;padding:0;max-width:none}
+    .card{border:none;padding:0}
+    .preview{max-height:none;overflow:visible;border:none;padding:0;font-size:12pt;line-height:1.9}
+    .preview .titlepage{text-align:center;margin-top:32%;page-break-after:always}
+    .preview .booktitle{font-size:26pt}
+    .preview .contents{page-break-after:always}
+    .preview .chapter{page-break-before:always}
+    .preview .chapter-title{font-size:18pt;border:none}
+    .preview p{text-indent:1.3em}
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>पुस्तक संपादक</h1>
+  <p>अपनी पांडुलिपि चिपकाएँ या फ़ाइल चुनें → जाँच देखें → सुधार चुनें → EPUB / PDF बनाएँ। यह पेज ऑफ़लाइन भी चलता है।</p>
+</header>
+
+<div class="wrap">
+  <div class="left">
+    <div class="card noprint">
+      <h2>1. पांडुलिपि (Manuscript)</h2>
+      <div class="row">
+        <button id="pick">फ़ाइल चुनें (.txt / .md / .docx)</button>
+        <button id="sample">नमूना डालें</button>
+        <button id="clear">साफ़ करें</button>
+      </div>
+      <input type="file" id="file" accept=".txt,.md,.markdown,.docx,text/plain" class="hidden">
+      <textarea id="input" placeholder="यहाँ अपना हिंदी (या अन्य भारतीय भाषा का) टेक्स्ट चिपकाएँ…"></textarea>
+      <div class="row">
+        <button id="check" class="primary">जाँचें</button>
+        <span id="stat" class="muted"></span>
+      </div>
+    </div>
+
+    <div class="card noprint" id="resultsCard" class="hidden">
+      <h2>2. जाँच के नतीजे (Review)</h2>
+      <div id="results"></div>
+      <div class="row" id="applyAllRow"></div>
+    </div>
+
+    <div class="card noprint">
+      <h2>3. निर्यात (Export)</h2>
+      <div class="row">
+        <input id="bookTitle" placeholder="किताब का शीर्षक" style="flex:1;min-width:130px;padding:8px;border:1px solid var(--line);border-radius:8px">
+        <input id="bookAuthor" placeholder="लेखक का नाम" style="flex:1;min-width:130px;padding:8px;border:1px solid var(--line);border-radius:8px">
+      </div>
+      <div class="row">
+        <button id="epub" class="primary">EPUB बनाएँ</button>
+        <button id="pdf">PDF (प्रिंट / सेव)</button>
+        <button id="txt">साफ़ .txt</button>
+        <button id="html">साफ़ .html</button>
+      </div>
+      <p class="muted">PDF के लिए “प्रिंट” विंडो में गंतव्य = “Save as PDF” चुनें।</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>4. पुस्तक पूर्वावलोकन (Preview)</h2>
+    <div class="preview" id="preview">पांडुलिपि जाँचने पर यहाँ किताब जैसा पूर्वावलोकन दिखेगा।</div>
+  </div>
+</div>
+
+<div class="wrap" style="grid-template-columns:1fr">
+  <div class="card noprint">
+    <h2>5. पेशेवर बुक सर्विस (Paid service)</h2>
+    <p class="muted">टूल मुफ़्त है। अगर आप चाहें कि हम आपके लिए पूरी, बेचने लायक किताब तैयार कर दें — तो नीचे से ऑर्डर करें।</p>
+    <table class="prices">
+      <tr><th>पैकेज</th><th>इसमें क्या</th><th>कीमत</th></tr>
+      <tr><td>बेसिक</td><td>जाँच + सफ़ाई + EPUB + PDF</td><td>₹ ___</td></tr>
+      <tr><td>प्रोफेशनल</td><td>बेसिक + लेगेसी फ़ॉन्ट फिक्स + KDP-रेडी फ़ाइल + कवर</td><td>₹ ___</td></tr>
+      <tr><td>प्रीमियम</td><td>प्रोफेशनल + प्रूफ़रीडिंग + KDP अपलोड सहायता</td><td>₹ ___</td></tr>
+    </table>
+    <div class="row">
+      <input id="oName" placeholder="आपका नाम" style="flex:1;min-width:140px;padding:8px;border:1px solid var(--line);border-radius:8px">
+      <input id="oEmail" placeholder="ईमेल" style="flex:1;min-width:140px;padding:8px;border:1px solid var(--line);border-radius:8px">
+      <select id="oPkg" style="padding:8px;border:1px solid var(--line);border-radius:8px">
+        <option>बेसिक</option><option>प्रोफेशनल</option><option>प्रीमियम</option>
+      </select>
+    </div>
+    <div class="row">
+      <a id="payBtn" class="pay" href="#" target="_blank" rel="noopener">अभी भुगतान करें (Cashfree)</a>
+      <button id="oMail">ऑर्डर ईमेल भेजें</button>
+    </div>
+    <p class="muted">भुगतान के बाद अपनी पांडुलिपि ईमेल पर भेज दें — हम किताब तैयार करके लौटा देंगे।</p>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* =========================================================================
+   पुस्तक संपादक — single-file app.  No external libraries; works offline.
+   ========================================================================= */
+
+var state = { text: "", findings: [] };
+
+/* ---------- tiny helpers ---------- */
+function $(id){ return document.getElementById(id); }
+function esc(s){ return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function countOccurrences(t, sub){
+  if(!sub) return 0; var n=0,i=0; while((i=t.indexOf(sub,i))!==-1){ n++; i+=sub.length; } return n;
+}
+function replaceNth(t, find, repl, n){
+  var i=0,idx=-1,c=0;
+  while((idx=t.indexOf(find,i))!==-1){ c++; if(c===n){ return t.slice(0,idx)+repl+t.slice(idx+find.length); } i=idx+find.length; }
+  return t;
+}
+
+/* =========================================================================
+   CHECKS
+   Each check returns a finding:
+     {id, kind:'safe'|'manual'|'info', title, detail, count, apply(text)->text}
+   'safe' findings can be applied all at once; 'manual' ones are chosen one
+   by one; 'info' ones only inform.
+   ========================================================================= */
+
+function chkQuotes(t){
+  var out = t;
+  // context-aware straight quotes -> curly
+  out = out.replace(/(^|[\s\(\[\{“‘])(["'])/g, function(m,pre,q){ return pre + (q==='"'?'“':'‘'); });
+  out = out.replace(/(["'])(?=[\s\)\]\},।.!?]|$)/g, function(m,q){ return q==='"'?'”':'’'; });
+  // any leftover straight quotes -> default curly pair (opening then closing)
+  var open = true;
+  out = out.replace(/["']/g, function(){ open=!open; return open?"”":"“"; });
+  var diff = (t.match(/["']/g)||[]).length;
+  if(!diff) return null;
+  return { id:"quotes", kind:"safe", title:"सीधे कोट्स (“ \" ”) को घुमावदार बनाना",
+    detail: diff+" जगह सीधे कोट मिले — किताब में घुमावदार कोट (‘…’ “…” ) बेहतर दिखते हैं।",
+    count: diff, apply:function(x){ return applyQuotes(x); } };
+}
+function applyQuotes(t){
+  var out = t;
+  out = out.replace(/(^|[\s\(\[\{“‘])(["'])/g, function(m,pre,q){ return pre + (q==='"'?'“':'‘'); });
+  out = out.replace(/(["'])(?=[\s\)\]\},।.!?]|$)/g, function(m,q){ return q==='"'?'”':'’'; });
+  var open = true;
+  out = out.replace(/["']/g, function(){ open=!open; return open?"”":"“"; });
+  return out;
+}
+
+function chkDoubleSpace(t){
+  var m = t.match(/ {2,}/g); var n = m?m.length:0;
+  if(!n) return null;
+  return { id:"dblspace", kind:"safe", title:"एक से ज़्यादा स्पेस",
+    detail: n+" जगह दो या अधिक स्पेस मिले — इन्हें एक कर दें।",
+    count:n, apply:function(x){ return x.replace(/ {2,}/g," "); } };
+}
+
+function chkSpaceBeforePunct(t){
+  var m = t.match(/ +([,.!?;:।])/g); var n=m?m.length:0;
+  if(!n) return null;
+  return { id:"spacepunct", kind:"safe", title:"विराम से पहले स्पेस",
+    detail:n+" जगह विराम-चिह्न (.,!?;:।) से पहले स्पेस है — हटा दें।",
+    count:n, apply:function(x){ return x.replace(/ +([,.!?;:।])/g,"$1"); } };
+}
+
+function chkMissingSpaceAfterPunct(t){
+  // space missing after , ; : ! ? or the Devanagari danda (।).
+  // The Latin full stop is deliberately excluded — abbreviations (e.g., Dr.)
+  // make auto-fixing it unsafe.
+  var re = /([,;:!?।])(?=[^\s\d])/g;
+  var n = (t.match(re)||[]).length;
+  if(!n) return null;
+  return { id:"missingspace", kind:"safe", title:"विराम के बाद स्पेस नहीं",
+    detail:n+" जगह विराम-चिह्न (, ; : ! ? ।) के बाद स्पेस नहीं है — जोड़ दें।",
+    count:n, apply:function(x){
+      return x.replace(/([,;:!?।])(?=[^\s\d])/g,"$1 ");
+    } };
+}
+
+function chkTrailingSpace(t){
+  var lines = t.split("\n"); var n=0;
+  for(var i=0;i<lines.length;i++){ if(/[ \t]+$/.test(lines[i])) n++; }
+  if(!n) return null;
+  return { id:"trail", kind:"safe", title:"लाइन के अंत में स्पेस",
+    detail:n+" लाइनों के अंत में फालतू स्पेस है।",
+    count:n, apply:function(x){ return x.split("\n").map(function(l){return l.replace(/[ \t]+$/,"");}).join("\n"); } };
+}
+
+function chkManyBlank(t){
+  var n = (t.match(/\n{3,}/g)||[]).length;
+  if(!n) return null;
+  return { id:"blank", kind:"safe", title:"ज़्यादा खाली लाइनें",
+    detail:n+" जगह लगातार तीन या अधिक खाली लाइनें हैं।",
+    count:n, apply:function(x){ return x.replace(/\n{3,}/g,"\n\n"); } };
+}
+
+function chkRepeatedWords(t){
+  // word repeated immediately (works for Devanagari words too)
+  var re = /(^|[\s\u0900-\u097F])([^\s.,!?;:।]{2,})\s+\2(?=$|[\s.,!?;:।])/g;
+  var m, items=[];
+  while((m = re.exec(t))!==null){ items.push(m[2]); if(items.length>200) break; }
+  if(!items.length) return null;
+  return { id:"repwords", kind:"manual", title:"लगातार दोहराया गया शब्द",
+    detail:items.length+" जगह एक ही शब्द दो बार आया है (जैसे “कि कि”)। उदाहरण: "+items.slice(0,6).join(", "),
+    count:items.length, items:items,
+    applyOne:function(x, word){
+      var re2 = new RegExp("(^|[\\s\\u0900-\\u097F])("+word.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+")\\s+\\2(?=$|[\\s.,!?;:।])");
+      return x.replace(re2, "$1$2");
+    } };
+}
+
+function chkDuplicateParas(t){
+  var paras = t.split(/\n{2,}/);
+  var seen = {}, dup=0, norm;
+  for(var i=0;i<paras.length;i++){
+    norm = paras[i].replace(/\s+/g," ").trim();
+    if(norm.length < 40) continue;
+    if(seen[norm]) dup++; else seen[norm]=true;
+  }
+  if(!dup) return null;
+  return { id:"duppara", kind:"manual", title:"दोहराए गए पैराग्राफ़",
+    detail:dup+" पैराग्राफ़ एक से ज़्यादा बार आए हैं। (ध्यान से देखें — जानबूझकर भी हो सकते हैं।)",
+    count:dup };
+}
+
+function chkHeadings(t){
+  var lines = t.split("\n"); var cand=[];
+  for(var i=0;i<lines.length;i++){
+    var L = lines[i].trim();
+    if(L.length>0 && L.length<=60 && !/[.।!?]$/.test(L) && L.split(/\s+/).length<=8){
+      if(i===0 || lines[i-1].trim()==="") cand.push(L);
+    }
+  }
+  if(!cand.length) return null;
+  return { id:"headings", kind:"info", title:"संभावित शीर्षक / अध्याय",
+    detail:cand.length+" लाइनें शीर्षक जैसी लगती हैं। उदाहरण: "+cand.slice(0,4).join(" • "),
+    count:cand.length, items:cand };
+}
+
+/* legacy font detection (Kruti Dev / DevLys): Devanagari text typed in a
+   legacy Latin encoding shows as Latin gibberish, and legacy fonts use
+   characters that almost never appear in real English prose. */
+function chkLegacyFont(t){
+  var devanagari = (t.match(/[\u0900-\u097F]/g)||[]).length;
+  var letters = (t.match(/[A-Za-z]/g)||[]).length;
+  if(devanagari>0 || letters<200) return null;   // has real Devanagari -> fine
+  // heuristic: legacy-encoded Hindi is Latin-heavy but with unusual symbols
+  var odd = (t.match(/[\[\]{}|\\~`^_@#%&*+=<>]/g)||[]).length;
+  var suspicious = odd > letters*0.01;
+  if(!suspicious) return null;
+  return { id:"legacy", kind:"info", title:"संभवतः लेगेसी फ़ॉन्ट (Kruti Dev / DevLys)",
+    detail:"यह टेक्स्ट देवनागरी के बजाय लातीनी अक्षरों में है और असामान्य चिह्न भी हैं — "+
+           "यह लेगेसी फ़ॉन्ट में टाइप किया गया हिंदी टेक्स्ट लगता है। इसे पहले Unicode में "+
+           "बदलना ज़रूरी है, वरना किताब किसी और डिवाइस पर टूट जाएगी।",
+    count:1 };
+}
+
+var ALL_CHECKS = [chkLegacyFont, chkQuotes, chkDoubleSpace, chkSpaceBeforePunct,
+                  chkMissingSpaceAfterPunct, chkTrailingSpace, chkManyBlank,
+                  chkRepeatedWords, chkDuplicateParas, chkHeadings];
+
+function runChecks(text){
+  var found=[];
+  for(var i=0;i<ALL_CHECKS.length;i++){
+    var f = ALL_CHECKS[i](text);
+    if(f) found.push(f);
+  }
+  return found;
+}
+
+/* =========================================================================
+   RENDER
+   ========================================================================= */
+function render(){
+  var box = $("results");
+  box.innerHTML = "";
+  var f = state.findings;
+  if(!f.length){
+    box.innerHTML = '<p class="ok-msg">कोई सामान्य समस्या नहीं मिली। 🎉</p>';
+    $("applyAllRow").innerHTML = "";
+    updatePreview();
+    return;
+  }
+  var safeCount = 0;
+  f.forEach(function(fn){
+    if(fn.kind==="safe") safeCount++;
+    var div = document.createElement("div");
+    div.className = "finding "+fn.kind;
+    var chip = fn.kind==="safe" ? '<span class="chip">सुरक्षित — एक क्लिक</span>'
+             : fn.kind==="manual" ? '<span class="chip">आप खुद चुनें</span>'
+             : '<span class="chip">सूचना</span>';
+    var btns = "";
+    if(fn.kind==="safe"){
+      btns = '<button data-act="apply" data-id="'+fn.id+'">सुधार लागू करें</button>';
+    } else if(fn.kind==="manual" && fn.applyOne){
+      btns = '<button data-act="applyone" data-id="'+fn.id+'">सभी दोहराव ठीक करें</button>';
+    }
+    div.innerHTML = '<h3>'+esc(fn.title)+chip+'</h3><p class="detail">'+esc(fn.detail)+'</p>'+
+                    '<div class="btns">'+btns+'</div>';
+    box.appendChild(div);
+  });
+  var row = $("applyAllRow");
+  row.innerHTML = safeCount ? '<button id="applySafe" class="primary">सभी सुरक्षित सुधार लागू करें ('+safeCount+')</button>' : "";
+  if(safeCount){ $("applySafe").onclick = applyAllSafe; }
+  updatePreview();
+}
+
+function applyAllSafe(){
+  state.findings.forEach(function(fn){
+    if(fn.kind==="safe") state.text = fn.apply(state.text);
+  });
+  state.findings = runChecks(state.text);
+  render();
+}
+
+function applyOneFinding(id){
+  var fn = null;
+  for(var i=0;i<state.findings.length;i++) if(state.findings[i].id===id) fn=state.findings[i];
+  if(!fn) return;
+  if(fn.apply){ state.text = fn.apply(state.text); }
+  else if(fn.applyOne && fn.items){
+    var guard=0;
+    fn.items.slice().forEach(function(w){ if(guard++<500) state.text = fn.applyOne(state.text, w); });
+  }
+  state.findings = runChecks(state.text);
+  render();
+}
+
+/* =========================================================================
+   PREVIEW  (turn plain text into a book-like HTML)
+   ========================================================================= */
+function isHeadingLine(L, prevBlank, isFirst){
+  return L.length>0 && L.length<=60 && !/[.।!?]$/.test(L) &&
+         L.split(/\s+/).length<=8 && (prevBlank || isFirst);
+}
+function detectChapters(t){
+  var lines = t.replace(/\r\n/g,"\n").split("\n");
+  var chapters = [], cur = null;
+  for(var i=0;i<lines.length;i++){
+    var L = lines[i].trim();
+    var prevBlank = (i===0) || (lines[i-1].trim()==="");
+    if(isHeadingLine(L, prevBlank, i===0)){
+      if(cur) chapters.push(cur);
+      cur = { title: L, paras: [] };
+    } else if(L!==""){
+      if(!cur) cur = { title: "", paras: [] };
+      cur.paras.push(L);
+    }
+  }
+  if(cur) chapters.push(cur);
+  if(chapters.length>1 && chapters[0].paras.length===0) chapters.shift();  // leading title line
+  if(!chapters.length) chapters.push({title:"", paras:[]});
+  return chapters;
+}
+function chapterHeading(c, i, total){
+  if(c.title) return c.title;
+  return total>1 ? ("अध्याय "+(i+1)) : "";
+}
+function bookInnerHtml(title, author, chapters){
+  var parts = [];
+  parts.push('<section class="titlepage"><h1 class="booktitle">'+esc(title)+'</h1>'+
+             (author?'<p class="bookauthor">'+esc(author)+'</p>':'')+'</section>');
+  if(chapters.length>1){
+    var toc = chapters.map(function(c,i){
+      return '<li>'+esc(chapterHeading(c,i,chapters.length))+'</li>';
+    }).join('');
+    parts.push('<section class="contents"><h2>विषय-सूची</h2><ol class="toc">'+toc+'</ol></section>');
+  }
+  chapters.forEach(function(c,i){
+    var h = chapterHeading(c,i,chapters.length);
+    var body = c.paras.map(function(p){ return '<p>'+esc(p)+'</p>'; }).join('\n');
+    parts.push('<section class="chapter">'+(h?'<h2 class="chapter-title">'+esc(h)+'</h2>':'')+body+'</section>');
+  });
+  return parts.join('\n');
+}
+function textToBookHtml(t, title, author){
+  var ch = detectChapters(t);
+  return bookInnerHtml(title || bookTitleFrom(t), author || "", ch);
+}
+function updatePreview(){
+  if(!state.text.trim()){ $("preview").innerHTML = "पांडुलिपि जाँचने पर यहाँ किताब जैसा पूर्वावलोकन दिखेगा।"; return; }
+  var title = ($("bookTitle").value||"").trim() || bookTitleFrom(state.text);
+  var author = ($("bookAuthor").value||"").trim();
+  $("preview").innerHTML = textToBookHtml(state.text, title, author);
+}
+
+/* =========================================================================
+   EPUB  — minimal ZIP writer (STORE), then package.
+   ========================================================================= */
+function crc32(bytes){
+  var c, table = crc32._t;
+  if(!table){
+    table = crc32._t = new Uint32Array(256);
+    for(var n=0;n<256;n++){ c=n; for(var k=0;k<8;k++){ c = (c&1)?(0xEDB88320^(c>>>1)):(c>>>1); } table[n]=c>>>0; }
+  }
+  var crc = 0^(-1);
+  for(var i=0;i<bytes.length;i++){ crc = (crc>>>8) ^ table[(crc^bytes[i]) & 0xFF]; }
+  return (crc^(-1))>>>0;
+}
+function enc(s){ return new TextEncoder().encode(s); }
+
+function zipStore(files){
+  // files: [{name, data:Uint8Array}]
+  var parts=[], central=[], offset=0;
+  function u16(v){ return [v&255,(v>>8)&255]; }
+  function u32(v){ return [v&255,(v>>8)&255,(v>>16)&255,(v>>>24)&255]; }
+  files.forEach(function(f){
+    var nameB = enc(f.name), crc = crc32(f.data), size = f.data.length;
+    var lh = [].concat([0x50,0x4b,0x03,0x04], u16(20), u16(0), u16(0), u16(0), u16(0),
+                       u32(crc), u32(size), u32(size), u16(nameB.length), u16(0));
+    parts.push(new Uint8Array(lh), nameB, f.data);
+    central.push([].concat([0x50,0x4b,0x01,0x02], u16(20), u16(20), u16(0), u16(0), u16(0), u16(0),
+                       u32(crc), u32(size), u32(size), u16(nameB.length), u16(0), u16(0),
+                       u16(0), u16(0), u32(0), u32(offset)));
+    central[central.length-1] = { bytes: central[central.length-1], name: nameB };
+    offset += lh.length + nameB.length + size;
+  });
+  var cdParts=[], cdSize=0, cdCount=central.length;
+  central.forEach(function(c){
+    var b = new Uint8Array(c.bytes); cdParts.push(b, c.name); cdSize += b.length + c.name.length;
+  });
+  var eocd = new Uint8Array([].concat([0x50,0x4b,0x05,0x06], u16(0), u16(0),
+              u16(cdCount), u16(cdCount), u32(cdSize), u32(offset), u16(0)));
+  var all = parts.concat(cdParts, [eocd]);
+  var total=0; all.forEach(function(a){ total+=a.length; });
+  var out = new Uint8Array(total), p=0;
+  all.forEach(function(a){ out.set(a,p); p+=a.length; });
+  return out;
+}
+
+function buildEpub(text, title, author){
+  var chapters = detectChapters(text);
+  var css = 'body{font-family:serif;line-height:1.9;margin:0 6%;}h1,h2{line-height:1.3;}'+
+    '.booktitle{font-size:2em;text-align:center;margin-top:30%;}'+
+    '.bookauthor{text-align:center;}'+
+    '.chapter-title{font-size:1.4em;margin:1.4em 0 .6em;}'+
+    'p{margin:.5em 0;text-align:justify;text-indent:1.3em;}'+
+    '.contents h2{font-size:1.4em;}.contents ol{list-style:none;padding:0;}.contents li{margin:.3em 0;}';
+  var manifest = ['<item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>',
+                  '<item id="css" href="style.css" media-type="text/css"/>'];
+  var spine = [], navLis = [], files = [];
+  var head = '<!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml" lang="hi"><head><meta charset="utf-8"/>'+
+             '<link rel="stylesheet" href="style.css"/><title>';
+  files.push({ name:"OEBPS/title.xhtml", data: enc(head+esc(title)+'</title></head><body><section class="titlepage">'+
+    '<h1 class="booktitle">'+esc(title)+'</h1>'+(author?'<p class="bookauthor">'+esc(author)+'</p>':'')+'</section></body></html>') });
+  manifest.push('<item id="title" href="title.xhtml" media-type="application/xhtml+xml"/>');
+  spine.push('<itemref idref="title"/>');
+  chapters.forEach(function(c,i){
+    var id = "ch"+(i+1), fn = id+".xhtml";
+    var h = chapterHeading(c,i,chapters.length);
+    var body = c.paras.map(function(p){ return '<p>'+esc(p)+'</p>'; }).join('\n');
+    files.push({ name:"OEBPS/"+fn, data: enc(head+esc(h||title)+'</title></head><body><section class="chapter">'+
+      (h?'<h2 class="chapter-title">'+esc(h)+'</h2>':'')+body+'</section></body></html>') });
+    manifest.push('<item id="'+id+'" href="'+fn+'" media-type="application/xhtml+xml"/>');
+    spine.push('<itemref idref="'+id+'"/>');
+    navLis.push('<li><a href="'+fn+'">'+esc(h||('अध्याय '+(i+1)))+'</a></li>');
+  });
+  files.push({ name:"OEBPS/nav.xhtml", data: enc(head+'विषय-सूची</title></head><body>'+
+    '<nav epub:type="toc" id="toc"><h1>विषय-सूची</h1><ol>'+navLis.join('')+'</ol></nav></body></html>') });
+  files.push({ name:"OEBPS/style.css", data: enc(css) });
+  var opf = '<?xml version="1.0" encoding="utf-8"?>'+
+    '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">'+
+    '<metadata xmlns:dc="http://purl.org/dc/elements/1.1/">'+
+    '<dc:identifier id="bookid">urn:uuid:'+crc32(enc(title+author)).toString(16)+'</dc:identifier>'+
+    '<dc:title>'+esc(title)+'</dc:title><dc:language>hi</dc:language>'+
+    '<dc:creator>'+esc(author||"")+'</dc:creator>'+
+    '<meta property="dcterms:modified">'+new Date().toISOString().replace(/\.\d+Z$/,"Z")+'</meta>'+
+    '</metadata><manifest>'+manifest.join('')+'</manifest><spine>'+spine.join('')+'</spine></package>';
+  var container = '<?xml version="1.0" encoding="utf-8"?>'+
+    '<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">'+
+    '<rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>';
+  var all = [{ name:"mimetype", data: enc("application/epub+zip") },
+             { name:"META-INF/container.xml", data: enc(container) },
+             { name:"OEBPS/content.opf", data: enc(opf) }].concat(files);
+  return zipStore(all);
+}
+
+/* =========================================================================
+   EXPORT ACTIONS
+   ========================================================================= */
+function download(filename, bytes, mime){
+  var blob = new Blob([bytes], {type:mime||"application/octet-stream"});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a");
+  a.href=url; a.download=filename; document.body.appendChild(a); a.click();
+  setTimeout(function(){ URL.revokeObjectURL(url); a.remove(); }, 1000);
+}
+function bookTitleFrom(text){
+  var lines = text.replace(/\r\n/g,"\n").split("\n");
+  for(var i=0;i<lines.length;i++){ var L=lines[i].trim(); if(L) return L.slice(0,60); }
+  return "मेरी किताब";
+}
+
+/* =========================================================================
+   WIRE UP
+   ========================================================================= */
+/* =========================================================================
+   DOCX input — reads word/document.xml out of a .docx (which is a zip),
+   using only the browser's built-in DecompressionStream. No libraries.
+   ========================================================================= */
+function unzipEntry(buf, wantName){
+  var dv = new DataView(buf), u8 = new Uint8Array(buf), i;
+  var eocd = -1;
+  for(i=u8.length-22; i>=0 && i>u8.length-70000; i--){ if(dv.getUint32(i,true)===0x06054b50){ eocd=i; break; } }
+  if(eocd<0) throw new Error("ज़िप फ़ाइल नहीं पहचानी गई");
+  var cdCount = dv.getUint16(eocd+10,true), cdOff = dv.getUint32(eocd+16,true), p = cdOff;
+  for(var n=0; n<cdCount; n++){
+    if(dv.getUint32(p,true)!==0x02014b50) break;
+    var method=dv.getUint16(p+10,true), compSize=dv.getUint32(p+20,true);
+    var nameLen=dv.getUint16(p+28,true), extraLen=dv.getUint16(p+30,true), commLen=dv.getUint16(p+32,true);
+    var lho=dv.getUint32(p+42,true);
+    var name=new TextDecoder().decode(u8.subarray(p+46, p+46+nameLen));
+    if(name===wantName){
+      var lnameLen=dv.getUint16(lho+26,true), lextraLen=dv.getUint16(lho+28,true);
+      var dataStart=lho+30+lnameLen+lextraLen;
+      var data=u8.subarray(dataStart, dataStart+compSize);
+      if(method===0) return Promise.resolve(data);
+      if(method===8){
+        var ds=new DecompressionStream("deflate-raw");
+        var stream=new Blob([data]).stream().pipeThrough(ds);
+        return new Response(stream).arrayBuffer().then(function(ab){ return new Uint8Array(ab); });
+      }
+      throw new Error("असमर्थित कम्प्रेशन");
+    }
+    p += 46 + nameLen + extraLen + commLen;
+  }
+  throw new Error("document.xml नहीं मिला");
+}
+function readDocx(arrayBuffer){
+  return unzipEntry(arrayBuffer, "word/document.xml").then(function(bytes){
+    var xml = new TextDecoder().decode(bytes);
+    xml = xml.replace(/<w:tab[^>]*\/>/g, "\t").replace(/<w:br[^>]*\/>/g, "\n").replace(/<\/w:p>/g, "\n");
+    var text="", re=/<w:t[^>]*>([\s\S]*?)<\/w:t>|(\n)/g, m;
+    while((m=re.exec(xml))!==null){ text += (m[1]!==undefined? m[1] : m[2]); }
+    text = text.replace(/&amp;/g,"&").replace(/&lt;/g,"<").replace(/&gt;/g,">")
+               .replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&apos;/g,"'");
+    return text.replace(/\n{3,}/g,"\n\n").trim();
+  });
+}
+
+function setText(t){ state.text = t; $("input").value = t; state.findings=[]; $("results").innerHTML=""; $("applyAllRow").innerHTML=""; $("stat").textContent=""; updatePreview(); }
+
+$("pick").onclick = function(){ $("file").click(); };
+$("file").onchange = function(e){
+  var f = e.target.files[0]; if(!f) return;
+  var isDocx = /\.docx$/i.test(f.name);
+  var r = new FileReader();
+  r.onload = function(){
+    if(isDocx){
+      $("stat").textContent = "DOCX पढ़ा जा रहा है…";
+      readDocx(r.result).then(function(txt){
+        setText(txt); $("stat").textContent = "फ़ाइल लोड: "+f.name+" (DOCX)";
+      }).catch(function(err){ alert("DOCX पढ़ने में समस्या: "+err.message); });
+    } else {
+      setText(String(r.result)); $("stat").textContent = "फ़ाइल लोड: "+f.name;
+    }
+  };
+  if(isDocx) r.readAsArrayBuffer(f); else r.readAsText(f, "utf-8");
+};
+$("sample").onclick = function(){
+  setText("मेरी कहानी\n\nएक  समय की बात है ,एक गाँव में एक बूढ़ा आदमी रहता था।वह बहुत दयालु था।\n\n"+
+          "उसके पास एक छोटा सा घर  था और वह  कि कि दिन भर काम करता रहता था।\n\n"+
+          "एक दिन उसने सोचा \"मुझे कुछ अच्छा करना चाहिए\"।\n\n"+
+          "उसके पास एक छोटा सा घर  था और वह  कि कि दिन भर काम करता रहता था।\n\n"+
+          "इस तरह उसकी कहानी शुरू हुई।");
+  $("stat").textContent="नमूना डाला गया। अब “जाँचें” दबाएँ।";
+};
+$("clear").onclick = function(){ setText(""); };
+$("bookTitle").oninput = updatePreview;
+$("bookAuthor").oninput = updatePreview;
+$("check").onclick = function(){
+  state.text = $("input").value;
+  if(!state.text.trim()){ alert("पहले कुछ टेक्स्ट डालें।"); return; }
+  state.findings = runChecks(state.text);
+  $("stat").textContent = state.findings.length ? (state.findings.length+" प्रकार की बातें मिलीं") : "सब ठीक";
+  render();
+};
+$("results").onclick = function(e){
+  var b = e.target.closest("button"); if(!b) return;
+  var act = b.getAttribute("data-act"), id = b.getAttribute("data-id");
+  if(act==="apply" || act==="applyone") applyOneFinding(id);
+};
+$("epub").onclick = function(){
+  if(!state.text.trim()){ alert("पहले पांडुलिपि डालें और जाँचें।"); return; }
+  var title = ($("bookTitle").value||"").trim() || bookTitleFrom(state.text);
+  var author = ($("bookAuthor").value||"").trim();
+  var bytes = buildEpub(state.text, title, author);
+  download(title.replace(/[^\w\u0900-\u097F]+/g,"_")+".epub", bytes, "application/epub+zip");
+};
+$("pdf").onclick = function(){ window.print(); };
+$("txt").onclick = function(){ download("पुस्तक.txt", enc(state.text), "text/plain;charset=utf-8"); };
+$("html").onclick = function(){
+  var title = ($("bookTitle").value||"").trim() || bookTitleFrom(state.text);
+  var author = ($("bookAuthor").value||"").trim();
+  var inner = textToBookHtml(state.text, title, author);
+  var css = '.titlepage{text-align:center;margin-top:32%;page-break-after:always}.booktitle{font-size:26pt}'+
+    '.contents{page-break-after:always}.chapter{page-break-before:always}'+
+    '.chapter-title{font-size:18pt}.toc{list-style:none;padding:0}p{text-indent:1.3em;text-align:justify}';
+  var doc = '<!DOCTYPE html><html lang="hi"><head><meta charset="utf-8"><title>'+esc(title)+'</title>'+
+    '<style>@page{size:A5;margin:18mm 16mm}body{font-family:serif;line-height:1.9;max-width:38em;margin:2em auto;padding:0 1em}'+css+'</style>'+
+    '</head><body>'+inner+'</body></html>';
+  download("पुस्तक.html", enc(doc), "text/html;charset=utf-8");
+};
+
+/* ---- config: paste your Cashfree payment link and contact email here ---- */
+var CASHFREE_LINK = "https://payments.cashfree.com/REPLACE_WITH_YOUR_PAYMENT_LINK";
+var CONTACT_EMAIL = "your-email@example.com";
+$("payBtn").href = CASHFREE_LINK;
+$("oMail").onclick = function(){
+  var n=$("oName").value||"", e=$("oEmail").value||"", p=$("oPkg").value;
+  var sub = encodeURIComponent("बुक सर्विस ऑर्डर — "+p);
+  var body = encodeURIComponent("नाम: "+n+"\nईमेल: "+e+"\nपैकेज: "+p+"\n\nमेरी पांडुलिपि भेज रहा हूँ।");
+  window.location.href = "mailto:"+CONTACT_EMAIL+"?subject="+sub+"&body="+body;
+};
+
+/* expose for testing (Node) */
+if(typeof module!=="undefined" && module.exports){
+  module.exports = { runChecks:runChecks, applyQuotes:applyQuotes, buildEpub:buildEpub,
+                     textToBookHtml:textToBookHtml, detectChapters:detectChapters,
+                     zipStore:zipStore, crc32:crc32 };
+}
+</script>
+</body>
+</html>
